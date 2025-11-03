@@ -1,4 +1,21 @@
 ---
+- name: Prepare Python environment
+  hosts: "{{host}}"
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Install Python dependencies
+      raw: |
+        if command -v apt-get >/dev/null 2>&1; then
+          apt-get update && apt-get install -y python3 python3-pip
+        elif command -v yum >/dev/null 2>&1; then
+          yum install -y python3 python3-pip
+        elif command -v zypper >/dev/null 2>&1; then
+          zypper install -y python3 python3-pip
+        fi
+        pip3 install six
+      changed_when: false
+
 - name: Nginx proxy server setup
   hosts: "{{host}}"
   become: yes

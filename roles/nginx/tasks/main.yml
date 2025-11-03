@@ -1,81 +1,101 @@
 ---
-# 确保Python依赖已安装
-- name: 安装Python依赖
+# 使用简单的方式安装和配置nginx，减少对Python模块的依赖
+
+# 安装nginx - 使用raw模块避免Python依赖问题
+- name: 安装nginx
   raw: |
     if command -v apt-get >/dev/null 2>&1; then
-      apt-get update && apt-get install -y python3-pip
+      apt-get update && apt-get install -y nginx
     elif command -v yum >/dev/null 2>&1; then
-      yum install -y python3-pip
+      yum install -y nginx
     elif command -v zypper >/dev/null 2>&1; then
-      zypper install -y python3-pip
+      zypper install -y nginx
     fi
-    pip3 install six
   become: yes
   changed_when: false
 
-# 检测操作系统
-- name: 获取操作系统信息
-  setup:
-    gather_subset:
-      - '!all'
-      - '!min'
-      - distribution
-
-# 获取nginx版本信息
-- name: 检查nginx是否已安装
-  command: which nginx
-  register: nginx_exists
-  ignore_errors: yes
+# 配置nginx - 使用shell模块避免Python依赖问题
+- name: 创建nginx配置文件
+  raw: |
+    cat > /etc/nginx/nginx.conf << 'EOL'
+    user root;
+    worker_processes auto;
+    pid /run/nginx.pid;
+    error_log /var/log/nginx/error.log;
+    
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        sendfile on;
+        tcp_nopush on;
+        types_hash_max_size 2048;
+        
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers on;
+        
+        access_log /var/log/nginx/access.log;
+        
+        gzip on;
+        
+        server {
+            listen 80 default_server;
+            server_name _;
+            
+            location ^~ /pic/ {
+                proxy_pass https://image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com/;
+                
+                proxy_ssl_server_name on;
+                proxy_ssl_name image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com;
+                
+                proxy_set_header Host image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                
+                proxy_http_version 1.1;
+                proxy_read_timeout 60s;
+                
+                proxy_ssl_protocols TLSv1.2 TLSv1.3;
+            }
+            
+            location / {
+                proxy_pass http://45.144.138.101:7777;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+        }
+    }
+    EOL
+  become: yes
   changed_when: false
-
-- name: 获取nginx版本信息
-  shell: nginx -v 2>&1 | grep -oP '(?<=nginx/)[0-9]+\.[0-9]+\.[0-9]+'
-  register: nginx_version
-  ignore_errors: yes
-  changed_when: false
-  when: nginx_exists.rc == 0
-
-# 安装nginx - Debian/Ubuntu系统
-- name: 安装nginx (Debian/Ubuntu)
-  apt:
-    name: nginx
-    state: present
-    update_cache: yes
-  when: ansible_facts['os_family'] == "Debian"
-
-# 安装nginx - RedHat/CentOS系统
-- name: 安装nginx (RedHat/CentOS)
-  yum:
-    name: nginx
-    state: present
-    update_cache: yes
-  when: ansible_facts['os_family'] == "RedHat"
-
-# 安装nginx - SUSE系统
-- name: 安装nginx (SUSE)
-  zypper:
-    name: nginx
-    state: present
-    update_cache: yes
-  when: ansible_facts['os_family'] == "Suse"
-
-# 配置nginx
-- name: 配置nginx
-  template:
-    src: nginx.conf.j2
-    dest: /etc/nginx/nginx.conf
-    owner: root
-    group: root
-    mode: 0644
-  register: nginx_config
 
 # 验证nginx配置
 - name: 验证nginx配置
-  command: nginx -t
+  raw: nginx -t
+  become: yes
   register: nginx_config_test
-  failed_when: nginx_config_test.rc != 0
+  failed_when: "'failed' in nginx_config_test.stdout or 'error' in nginx_config_test.stdout"
   changed_when: false
-  when: nginx_config.changed
+
+# 启动并启用nginx服务
+- name: 启动并启用nginx服务
+  raw: |
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl enable nginx
+      systemctl restart nginx
+    elif command -v service >/dev/null 2>&1; then
+      service nginx enable
+      service nginx restart
+    fi
+  become: yes
+  changed_when: false
 
 # 重启nginx（仅当配置更改且验证通过）
 - name: 重启nginx
