@@ -49,10 +49,10 @@ http {
     ##
     # Include vhost snippets (正确位置是在 http 里)
     ##
-    include /etc/nginx/conf.d/*.conf;
-    {% if ansible_facts.os_family == "Debian" %}
-    include /etc/nginx/sites-enabled/*;
-    {% endif %}
+    #include /etc/nginx/conf.d/*.conf;
+    #{% if ansible_facts.os_family == "Debian" %}
+    #include /etc/nginx/sites-enabled/*;
+    #{% endif %}
 
     ##
     # Your server
