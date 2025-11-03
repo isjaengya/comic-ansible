@@ -1,0 +1,11 @@
+*.sw[op]
+.idea
+.python-version
+auth_rsync.sh
+*.pyc
+auth_rsync*
+*.log
+*.csv
+*.txt
+test
+tes

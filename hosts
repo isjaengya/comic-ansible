@@ -1,0 +1,10 @@
+[test]
+test_1 ansible_ssh_host=8.219.216.20
+
+[api-proxy]
+pcm_qiandao_1 ansible_ssh_host=8.222.161.191 cron=1
+pcm_qiandao_2 ansible_ssh_host=8.219.87.147
+
+[image-proxy]
+pcm_qiandao_1 ansible_ssh_host=8.222.161.191 cron=1
+pcm_qiandao_2 ansible_ssh_host=8.219.87.147

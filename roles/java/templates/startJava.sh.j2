@@ -1,0 +1,48 @@
+#!/bin/bash
+source /etc/profile
+projectName="{{ project_name }}"
+packageName="{{ project_name }}.jar"
+logDir="/var/log/$projectName"
+echo "now starting: $packageName"
+
+
+processId=`ps -ef|grep "$packageName" | grep -v "grep" |awk '{print $2}'`
+
+
+if [ $processId ];then
+        echo "存在进程id:$processId"
+        kill "$processId"
+        for((i=1;i<=30;i++))
+        do
+                sleep 1
+                processId2=`ps -ef|grep "$processId" | grep -v "grep" |awk '{print $2}'`
+                if [ -z $processId2 ]; then
+                        echo "进程不存在了"
+                        break
+                fi
+                echo "sleep $i"
+        done
+        # 判断是否还存在进程 存在kill-9
+        processId=`ps -ef|grep "$processId" | grep -v "grep" |awk '{print $2}'`
+        if [ $processId ];then
+                echo "sleep后还存在进程id:$processId kill -9"
+                kill -9 "$processId"
+        fi
+
+
+else
+        echo "进程不存在"
+fi
+
+
+jvmParam="-XX:MetaspaceSize=256M -XX:MaxMetaspaceSize=512M -Xms1g -Xmx1g -Xss256k -XX:MaxTenuringThreshold=15  -XX:+UseG1GC -XX:MaxGCPauseMillis=200    -XX:-OmitStackTraceInFastThrow -XX:+DisableExplicitGC -XX:+HeapDumpOnOutOfMemoryError -Xloggc:$logDir/$projectName-gc.log -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10    -XX:GCLogFileSize=10M    -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationStoppedTime -XX:+PrintGCApplicationConcurrentTime -XX:+ExplicitGCInvokesConcurrent -XX:HeapDumpPath=$logDir/$projectName-dump.hprof    -XX:+AlwaysPreTouch -XX:-UseBiasedLocking -Djava.security.egd=file:/dev/./urandom  -Dlog4j2.AsyncQueueFullPolicy=Discard -Dlog4j2.DiscardThreshold=FATAL"
+
+
+echo "启动参数: $jvmParam"
+
+
+nohup java -jar $jvmParam {{ project_path }}/$packageName>/dev/null 2>&1 &
+
+
+processId=`ps -ef|grep "$packageName" | grep -v "grep" |awk '{print $2}'`
+echo "启动成功 进程id$processId"
