@@ -1,4 +1,18 @@
 ---
+# 确保Python依赖已安装
+- name: 安装Python依赖
+  raw: |
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update && apt-get install -y python3-pip
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y python3-pip
+    elif command -v zypper >/dev/null 2>&1; then
+      zypper install -y python3-pip
+    fi
+    pip3 install six
+  become: yes
+  changed_when: false
+
 # 检测操作系统
 - name: 获取操作系统信息
   setup:
