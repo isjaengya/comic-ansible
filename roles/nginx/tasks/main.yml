@@ -5,7 +5,7 @@
 - name: 安装nginx
   raw: |
     if command -v apt-get >/dev/null 2>&1; then
-      apt-get update && apt-get install -y nginx
+      apt-get install -y nginx
     elif command -v yum >/dev/null 2>&1; then
       yum install -y nginx
     elif command -v zypper >/dev/null 2>&1; then
