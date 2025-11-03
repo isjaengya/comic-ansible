@@ -1,5 +1,22 @@
 ---
-- name: restart nginx
-  service:
+# 1) 先校验配置
+- name: Test nginx config
+  ansible.builtin.command: nginx -t
+  register: nginx_test
+  changed_when: false
+  listen: nginx changed
+
+# 2) 仅当校验通过时 reload
+- name: Reload nginx
+  ansible.builtin.service:
     name: nginx
-    state: restarted
+    state: reloaded
+  when: nginx_test.rc == 0
+  listen: nginx changed
+
+# 3) 校验失败则中断并输出错误
+- name: Fail on bad config
+  ansible.builtin.fail:
+    msg: "{{ nginx_test.stderr | default(nginx_test.stdout) }}"
+  when: nginx_test.rc != 0
+  listen: nginx changed

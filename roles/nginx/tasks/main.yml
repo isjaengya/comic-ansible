@@ -1,112 +1,23 @@
 ---
-# 使用简单的方式安装和配置nginx，减少对Python模块的依赖
-
-# 安装nginx - 使用raw模块避免Python依赖问题
-- name: 安装nginx
-  raw: |
-    if command -v apt-get >/dev/null 2>&1; then
-      apt-get install -y nginx
-    elif command -v yum >/dev/null 2>&1; then
-      yum install -y nginx
-    elif command -v zypper >/dev/null 2>&1; then
-      zypper install -y nginx
-    fi
-  become: yes
-  changed_when: false
-
-# 配置nginx - 使用shell模块避免Python依赖问题
-- name: 创建nginx配置文件
-  raw: |
-    cat > /etc/nginx/nginx.conf << 'EOL'
-    user root;
-    worker_processes auto;
-    pid /run/nginx.pid;
-    error_log /var/log/nginx/error.log;
-    
-    events {
-        worker_connections 1024;
-    }
-    
-    http {
-        sendfile on;
-        tcp_nopush on;
-        types_hash_max_size 2048;
-        
-        include /etc/nginx/mime.types;
-        default_type application/octet-stream;
-        
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_prefer_server_ciphers on;
-        
-        access_log /var/log/nginx/access.log;
-        
-        gzip on;
-        
-        server {
-            listen 80 default_server;
-            server_name _;
-            
-            location ^~ /pic/ {
-                proxy_pass https://image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com/;
-                
-                proxy_ssl_server_name on;
-                proxy_ssl_name image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com;
-                
-                proxy_set_header Host image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com;
-                proxy_set_header X-Real-IP         $remote_addr;
-                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-                
-                proxy_http_version 1.1;
-                proxy_read_timeout 60s;
-                
-                proxy_ssl_protocols TLSv1.2 TLSv1.3;
-            }
-            
-            location / {
-                proxy_pass http://45.144.138.101:7777;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-            }
-        }
-    }
-    EOL
-  become: yes
-  changed_when: false
-
-# 验证nginx配置
-- name: 验证nginx配置
-  raw: nginx -t
-  become: yes
-  register: nginx_config_test
-  failed_when: "'failed' in nginx_config_test.stdout or 'error' in nginx_config_test.stdout"
-  changed_when: false
-
-# 启动并启用nginx服务
-- name: 启动并启用nginx服务
-  raw: |
-    if command -v systemctl >/dev/null 2>&1; then
-      systemctl enable nginx
-      systemctl restart nginx
-    elif command -v service >/dev/null 2>&1; then
-      service nginx enable
-      service nginx restart
-    fi
-  become: yes
-  changed_when: false
-
-# 重启nginx（仅当配置更改且验证通过）
-- name: 重启nginx
-  service:
+- name: Install nginx (Debian/RedHat/SUSE)
+  ansible.builtin.package:
     name: nginx
-    state: restarted
-  when: nginx_config.changed and nginx_config_test.rc == 0
+    state: present
+    update_cache: yes
 
-# 确保nginx服务开机自启动
-- name: 确保nginx服务开机自启动
-  service:
+# 确保服务存在（第一次启动）
+- name: Ensure nginx service started and enabled
+  ansible.builtin.service:
     name: nginx
     state: started
     enabled: yes
+
+# 渲染配置，变更则触发 handler
+- name: Render /etc/nginx/nginx.conf
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: nginx changed
