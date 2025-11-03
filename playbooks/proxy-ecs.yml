@@ -20,6 +20,10 @@
         fi
       changed_when: false
 
+    # 2) 现在能收集 facts 了
+    - name: Gather facts
+      setup:
+
 - name: Nginx proxy server setup
   hosts: "{{host}}"
   gather_facts: no
