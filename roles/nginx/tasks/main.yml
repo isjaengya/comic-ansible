@@ -1,0 +1,78 @@
+---
+# 检测操作系统
+- name: 获取操作系统信息
+  setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - distribution
+
+# 获取nginx版本信息
+- name: 检查nginx是否已安装
+  command: which nginx
+  register: nginx_exists
+  ignore_errors: yes
+  changed_when: false
+
+- name: 获取nginx版本信息
+  shell: nginx -v 2>&1 | grep -oP '(?<=nginx/)[0-9]+\.[0-9]+\.[0-9]+'
+  register: nginx_version
+  ignore_errors: yes
+  changed_when: false
+  when: nginx_exists.rc == 0
+
+# 安装nginx - Debian/Ubuntu系统
+- name: 安装nginx (Debian/Ubuntu)
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+  when: ansible_facts['os_family'] == "Debian"
+
+# 安装nginx - RedHat/CentOS系统
+- name: 安装nginx (RedHat/CentOS)
+  yum:
+    name: nginx
+    state: present
+    update_cache: yes
+  when: ansible_facts['os_family'] == "RedHat"
+
+# 安装nginx - SUSE系统
+- name: 安装nginx (SUSE)
+  zypper:
+    name: nginx
+    state: present
+    update_cache: yes
+  when: ansible_facts['os_family'] == "Suse"
+
+# 配置nginx
+- name: 配置nginx
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: 0644
+  register: nginx_config
+
+# 验证nginx配置
+- name: 验证nginx配置
+  command: nginx -t
+  register: nginx_config_test
+  failed_when: nginx_config_test.rc != 0
+  changed_when: false
+  when: nginx_config.changed
+
+# 重启nginx（仅当配置更改且验证通过）
+- name: 重启nginx
+  service:
+    name: nginx
+    state: restarted
+  when: nginx_config.changed and nginx_config_test.rc == 0
+
+# 确保nginx服务开机自启动
+- name: 确保nginx服务开机自启动
+  service:
+    name: nginx
+    state: started
+    enabled: yes

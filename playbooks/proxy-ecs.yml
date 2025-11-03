@@ -1,0 +1,6 @@
+---
+- name: Nginx proxy server setup
+  hosts: "{{host}}"
+  become: yes
+  roles:
+    - nginx

@@ -1,0 +1,109 @@
+user root;
+worker_processes auto;
+pid /run/nginx.pid;
+error_log /var/log/nginx/error.log;
+# 有条件地包含模块，增强兼容性
+{% if ansible_facts['os_family'] == "Debian" %}
+include /etc/nginx/modules-enabled/*.conf;
+{% elif ansible_facts['os_family'] == "RedHat" %}
+include /etc/nginx/conf.d/*.conf;
+{% endif %}
+
+events {
+	worker_connections 1024;
+	# multi_accept on;
+}
+
+http {
+
+	##
+	# Basic Settings
+	##
+
+	sendfile on;
+	tcp_nopush on;
+	types_hash_max_size 2048;
+	# server_tokens off;
+
+	# server_names_hash_bucket_size 64;
+	# server_name_in_redirect off;
+
+	include /etc/nginx/mime.types;
+	default_type application/octet-stream;
+
+	##
+	# SSL Settings
+	##
+
+	{% if ansible_facts['distribution_version'] is version('1.13.0', '>=') %}
+	ssl_protocols TLSv1.2 TLSv1.3; # 更安全的配置，适用于较新版本
+	{% else %}
+	ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # 兼容旧版本
+	{% endif %}
+	ssl_prefer_server_ciphers on;
+
+	##
+	# Logging Settings
+	##
+
+	access_log /var/log/nginx/access.log;
+
+	##
+	# Gzip Settings
+	##
+
+	gzip on;
+
+	# gzip_vary on;
+	# gzip_proxied any;
+	# gzip_comp_level 6;
+	# gzip_buffers 16 8k;
+	# gzip_http_version 1.1;
+	# gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+	##
+	# Virtual Host Configs
+	##
+
+	server {
+	    listen 80 default_server;
+	    #server_name hk1.goodpic.shop;
+	    server_name _;
+
+	    location ^~ /pic/ {
+	        proxy_pass https://image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com/;
+
+	        # 关键：让 Nginx 用域名做 SNI，而不是用上游 IP
+	        proxy_ssl_server_name on;
+	        proxy_ssl_name image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com;
+
+	        # Host 头也写成上游域名（预签名 URL Host 要匹配）
+	        proxy_set_header Host image.e803560d61e7fe3a4c4caea5c14e96a2.r2.cloudflarestorage.com;
+	        proxy_set_header X-Real-IP         $remote_addr;
+	        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+	        proxy_set_header X-Forwarded-Proto $scheme;
+
+	        proxy_http_version 1.1;
+	        proxy_read_timeout 60s;
+
+	        # 根据nginx版本选择合适的SSL协议
+	        {% if ansible_facts['distribution_version'] is version('1.13.0', '>=') %}
+	        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+	        {% else %}
+	        proxy_ssl_protocols TLSv1.2;
+	        {% endif %}
+
+	    }
+
+	    location / {
+	        proxy_pass http://45.144.138.101:7777;
+	        proxy_set_header Host $host;
+	        proxy_set_header X-Real-IP $remote_addr;
+	        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	        proxy_set_header X-Forwarded-Proto $scheme;
+	        }
+        }
+
+	#include /etc/nginx/conf.d/*.conf;
+	#include /etc/nginx/sites-enabled/*;
+}
